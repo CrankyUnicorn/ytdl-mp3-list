@@ -12,7 +12,6 @@ Fully open source desktop app for downloading audio (MP3 or WebM) or lists of au
 - 📊 **Download progress bar** for real-time feedback
 - 💾 **Locally stores preferences** (no cloud dependencies)
 - 💡 Simple, clean, and dark-themed interface
-- ✅ Fully self-contained `.exe` build (no Python or FFmpeg install required)
 
 
 ### 🧩 What This App Really Is
