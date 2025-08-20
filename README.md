@@ -7,6 +7,7 @@ Fully open source desktop app for downloading audio (MP3 or WebM) or lists of au
 ## 🚀 Features
 - 📰 **Download based on Youtube Music lists** from Youtube Music (just copy url that has ?list=)
 - 🎧 **Download high-quality audio** from YouTube videos
+- 🖼️ **Appends album art** from Youtube Music
 - 🎵 **Choose format**: MP3 (with conversion) or WebM (original audio)
 - 📁 **Set and remember your download folder** across sessions
 - 📊 **Download progress bar** for real-time feedback
