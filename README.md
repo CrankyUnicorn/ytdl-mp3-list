@@ -34,16 +34,21 @@ No hidden logic. No data collection. No manipulation of YouTube systems.
 1. Node.js v20.10.0 https://nodejs.org/en/download
 2. Python v3.11 https://www.python.org/downloads/
 
+You may also NVM or other envirenment managers for both Nodejs an Python.
+Just don't forget to set up the node version to be used.
+
 (i provided versions so exact environment as development can be reproduced)
 
 ### 1. Clone the repo
 
 ### 2. Install dependencies
 ```bash
+mkdir bin
+mkdir temp
 npm install
 ```
 
-### 3. Download Required Binaries (already included for linux users)
+### 3. Download Required Binaries
 
 #### ✅ `ffmpeg
 
