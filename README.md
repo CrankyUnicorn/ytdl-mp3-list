@@ -1,6 +1,6 @@
 # 🎵 YouTube Music List Downloader (Electron App)
     
-Forked from YouTube Music Downloader by Veljko Vuckovic
+Forked from YouTube Music Downloader by Veljko Vuckovic.  
 Fully open source desktop app for downloading audio (MP3 or WebM) or lists of audio from Youtube Music.
 
 
