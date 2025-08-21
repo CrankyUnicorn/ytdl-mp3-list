@@ -50,9 +50,9 @@ npm install
 
 ### 3. Download Required Binaries
 
-#### ✅ `ffmpeg
+#### ✅ ffmpeg
 
-#### ✅ `yt-dlp  
+#### ✅ yt-dlp  
 
 - Place both into the `/bin/` of the project folder
 
@@ -63,7 +63,7 @@ npm start
 
 ## 💼 Packaging Notes
 - Uses `electron-builder` for cross-platform packaging
-- `extraResources` includes `yt-dlp.exe` and `ffmpeg.exe`
+- `extraResources` includes `yt-dlp` and `ffmpeg`
 - Settings are stored in Electron's `app.getPath('userData')`
 
 
