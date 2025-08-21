@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "ffmpeg-static": "^5.1.0",
+    "lodash": "^4.17.21",
     "node-id3": "^0.2.9",
     "yt-dlp-wrap": "^2.3.2"
   },
