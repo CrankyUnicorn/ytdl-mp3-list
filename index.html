@@ -45,32 +45,82 @@
       color: #aaa;
       margin-bottom: 10px;
     }
+    #queue {
+      background-color: #333;
+      margin-top: 20px;
+      padding: 12px;
+      border: none;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      overflow-y: auto;
+      height: 180px;
+    }
+    .pending { 
+      color: #00c4b4;
+    }
+    .consuming { 
+      color: #58c400;
+      font-weight: bold;
+    }
+    .consumed { 
+      color: gray;
+      text-decoration: line-through;
+    }
   </style>
 </head>
 <body>
   <h1>ytDl</h1>
   <button id="selectFolderBtn">📁 Select Download Folder</button>
   <div class="folder-path" id="folderPath">📂 No folder selected</div>
+
   <input id="urlInput" type="text" placeholder="Paste YouTube URL here" />
+
   <select id="formatSelect">
     <option value="mp3">MP3 (convert)</option>
     <option value="webm">WebM (best quality)</option>
   </select>
+
+  
+  <button id="addQueueBtn">Add to Queue</button>
+  <div id="queue"></div>
+  
+  <div class="progress" id="progressText">Track Progress: 0%</div>
+  
   <button id="downloadBtn">Download</button>
 
-  <div class="progress" id="progressText">Progress: 0%</div>
-
   <script>
+    const selectFolderBtn = document.getElementById('selectFolderBtn');
+    const folderPathDisplay = document.getElementById('folderPath');
     const urlInput = document.getElementById('urlInput');
     const formatSelect = document.getElementById('formatSelect');
     const downloadBtn = document.getElementById('downloadBtn');
-    const selectFolderBtn = document.getElementById('selectFolderBtn');
-    const folderPathDisplay = document.getElementById('folderPath');
+    const addQueueBtn = document.getElementById('addQueueBtn');
+    const queueDiv = document.getElementById('queue');
     const progressText = document.getElementById('progressText');
 
     const updateFolderDisplay = (path) => {
       folderPathDisplay.textContent = path ? `📂 ${path}` : '📂 No folder selected';
     };
+
+    const renderQueue = (queue) => {
+      queueDiv.innerHTML = queue
+        .map(item => `<div class="${item.status}" >${item.url} - [${item.status}${item.status === 'consuming' ? ' > ' + item.percentage + '%': ''}]</div>`)
+        .join('');
+    }
+
+    // Add URL
+    addQueueBtn.addEventListener('click', () => {
+      const url = urlInput.value.trim();
+      const format = formatSelect.value;
+      if (url) {
+        window.electronAPI.addUrlQueue(url, format);
+        urlInput.value = '';
+      }
+    });
+
+    // Listen for queue updates
+    window.electronAPI.queueUpdated(renderQueue);
 
     selectFolderBtn.addEventListener('click', async () => {
       const folder = await window.electronAPI.selectDownloadFolder();
@@ -78,12 +128,8 @@
     });
 
     downloadBtn.addEventListener('click', () => {
-      const url = urlInput.value.trim();
-      const format = formatSelect.value;
-      if (url) {
-        window.electronAPI.downloadAudio(url, format);
-        progressText.textContent = 'Starting...';
-      }
+      window.electronAPI.downloadAudio();
+      progressText.textContent = 'Starting...';
     });
 
     window.electronAPI.onProgress((percent) => {
@@ -91,7 +137,7 @@
     });
 
     window.electronAPI.onComplete(() => {
-      progressText.textContent = '✅ Download complete!';
+      progressText.textContent = '⏳ Waiting for New Track!';
     });
 
     window.electronAPI.onError((message) => {
