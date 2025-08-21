@@ -5,25 +5,28 @@ const { writeFile, readFile } = require('node:fs/promises');
 const path = require('path');
 const fs = require('fs');
 const YtDlpWrap = require('yt-dlp-wrap').default;
+const _ = require('lodash');
 
 const ytDlpWrap = new YtDlpWrap();
 
 let selectedDownloadFolder = null;
+let urlQueue = [];
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-const youtubeProfile = 'chrome'; // or firefox
+const youtubeProfile = 'firefox:9iugcrtq.default';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Set ffmpeg path depending on environment
 const ffmpegPath = app.isPackaged
   ? path.join(process.resourcesPath, 'ffmpeg')
-  : path.join(__dirname, 'bin', 'ffmpeg');
+  : path.join(__dirname, 'bin', 'ffmpeg')
+;
 
 function createWindow() {
   const win = new BrowserWindow({
     width: 700,
-    height: 600,
+    height: 800,
     resizable: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -129,7 +132,7 @@ app.whenReady().then(() => {
       : path.join(__dirname, 'bin', 'yt-dlp');
 
     ytDlpWrap.setBinaryPath(binaryPath);
-    
+
   } catch (err) {
     console.error('Failed to set yt-dlp binary path:', err);
   }
@@ -163,13 +166,13 @@ ipcMain.handle('get-saved-folder', () => {
 async function downloadSong({event, url, format}) {
   return new Promise(async (resolve, reject) => {
     const ytDlpWrap2 = new YtDlpWrap();
-    
+
     const binaryPath = app.isPackaged
       ? path.join(process.resourcesPath, 'yt-dlp')
       : path.join(__dirname, 'bin', 'yt-dlp');
 
     ytDlpWrap2.setBinaryPath(binaryPath);
-    
+
     let finished = false;
 
     const cleanup = () => {
@@ -284,7 +287,7 @@ async function downloadSong({event, url, format}) {
       if (!finishedDownload) {
         if (typeof progress.percent === 'number' && !isNaN(progress.percent)) {
           progressLast = progress.percent;
-          event.sender.send('download-progress', progress.percent);
+          event.sender.send('download-progress', `Track Progress: ${progress.percent}`);
         } else if (isNaN(progress.percent) && progressLast === 100) {
           // if download close fails this will insure that it's finished
           finishedDownload = true
@@ -317,59 +320,95 @@ async function downloadSong({event, url, format}) {
   })
 }
 
-ipcMain.on('download-audio', async (event, { url, format }) => {
+
+
+ipcMain.on('add-url-queue', async (event, { url, format }) => {
+  urlQueue.push({ url, status: 'pending', format, percentage: 0 });
+
+  // updates frontend queue
+  event.sender.send('queue-updated', urlQueue);
+
+  // todo: in the end start downloading
+  
+});
+
+
+ipcMain.on('download-audio', async (event) => {
   // clean up
   cleanTempFolder()
-  
+
   if (!selectedDownloadFolder) {
     return event.sender.send('download-error', 'No folder selected. Please select a download folder first.');
   }
 
-  const matchList = url.match(/list=([^&]+)/);
-  const listId = matchList ? matchList[1] : null;
-  const playlistUrl = `https://www.youtube.com/playlist?list=${listId}`;
+  while (_.some(urlQueue, element => element.status !== 'consumed')) {
+    const pendingUrls = _.filter(urlQueue, element => element.status === 'pending');
+    const currentList = pendingUrls ? pendingUrls[0] : null;
 
-  if (matchList) {
-    const output = await ytDlpWrap.execPromise(
-      [
-        '--cookies-from-browser', 'firefox:9iugcrtq.default',
-        '--flat-playlist',
-        '--get-id',
-        playlistUrl,
-      ]
-    );
+    if (!currentList) {
+      break;
+    }
 
-    const ids = output.trim().split('\n');
-    // console.log(ids); // array of video IDs
+    currentList.status = 'consuming';
 
-    // run list
-    for (let index = 0; index < ids.length; index++) {
+    // updates frontend queue
+    event.sender.send('queue-updated', urlQueue);
+
+    const { url, format } = currentList;
+
+    const matchList = url.match(/list=([^&]+)/);
+    const listId = matchList ? matchList[1] : null;
+    const playlistUrl = `https://www.youtube.com/playlist?list=${listId}`;
+
+    if (matchList) {
+      const output = await ytDlpWrap.execPromise(
+        [
+          '--cookies-from-browser', 'firefox:9iugcrtq.default',
+          '--flat-playlist',
+          '--get-id',
+          playlistUrl,
+        ]
+      );
+
+      const ids = output.trim().split('\n');
+      // console.log(ids); // array of video IDs
+
+      // run list
+      for (let index = 0; index < ids.length; index++) {
+        currentList.percentage = _.toString(_.round(100 / ids.length * (index), 2));
+        // updates frontend queue
+        event.sender.send('queue-updated', urlQueue);
+
+        try {
+          console.log(`---------------------------------------------------------`)
+          console.log(`🎵 Trying to download song ${index + 1} out of ${ids.length}`)
+
+          const songUrl = `https://www.youtube.com/watch?v=${ids[index]}`;
+          console.log(`Song URL: ${songUrl}`)
+
+          await downloadSong({ event, url: songUrl, format });
+
+          await sleep(10000);
+        } catch (error) {
+          console.log("⁉️ ~ error:", error)
+        }
+      }
+    } else {
+      const match = url.match(/v=([^&]+)/);
+      const videoId = match ? match[1] : null;
+      const sanitizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
       try {
-        console.log(`---------------------------------------------------------`)
-        console.log(`🎵 Trying to download song ${index + 1} out of ${ids.length}`)
-
-        const songUrl = `https://www.youtube.com/watch?v=${ids[index]}`;
-        console.log(`Song URL: ${songUrl}`)
-
-        await downloadSong({ event, url: songUrl, format });
-        
-        await sleep(10000); 
+        await downloadSong({ event, url: sanitizedUrl, format });
       } catch (error) {
-        console.log("⁉️ ~ error:", error)
+        console.log("🚀 ~ error:", error)
       }
     }
-  } else {
-    const match = url.match(/v=([^&]+)/);
-    const videoId = match ? match[1] : null;
-    const sanitizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-    try {
-      await downloadSong({ event, url: sanitizedUrl, format });
-    } catch (error) {
-      console.log("🚀 ~ error:", error)
-    }
+    currentList.status = 'consumed';
+    // updates frontend queue
+    event.sender.send('queue-updated', urlQueue);
   }
-  
+
   console.log(`🏁 Finished Dowloads`)
 });
-
