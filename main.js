@@ -13,7 +13,7 @@ let selectedDownloadFolder = null;
 let urlQueue = [];
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-const youtubeProfile = 'firefox:9iugcrtq.default';
+const youtubeProfile = 'chrome'; // or firefox
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -412,3 +412,4 @@ ipcMain.on('download-audio', async (event) => {
 
   console.log(`🏁 Finished Dowloads`)
 });
+
