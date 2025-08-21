@@ -13,7 +13,7 @@ let selectedDownloadFolder = null;
 let urlQueue = [];
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-const youtubeProfile = 'chrome'; // or firefox
+const youtubeProfile = 'firefox:9iugcrtq.default';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -327,9 +327,6 @@ ipcMain.on('add-url-queue', async (event, { url, format }) => {
 
   // updates frontend queue
   event.sender.send('queue-updated', urlQueue);
-
-  // todo: in the end start downloading
-  
 });
 
 
@@ -410,6 +407,7 @@ ipcMain.on('download-audio', async (event) => {
     event.sender.send('queue-updated', urlQueue);
   }
 
+  event.sender.send('download-ended');
+
   console.log(`🏁 Finished Dowloads`)
 });
-
