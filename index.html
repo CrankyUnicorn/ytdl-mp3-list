@@ -23,9 +23,10 @@
       border: none;
       border-radius: 4px;
       font-size: 16px;
+      box-sizing: border-box;
     }
     input, select {
-      background-color: #1e1e1e;
+      background-color: #333;
       color: #fff;
     }
     button {
@@ -42,7 +43,7 @@
     }
     .folder-path {
       font-size: 14px;
-      color: #aaa;
+      color: #bbb;
       margin-bottom: 10px;
     }
     #queue {
@@ -56,21 +57,20 @@
       overflow-y: auto;
       height: 180px;
     }
-    .pending { 
+    .pending {
       color: #00c4b4;
     }
-    .consuming { 
+    .consuming {
       color: #58c400;
       font-weight: bold;
     }
-    .consumed { 
-      color: gray;
-      text-decoration: line-through;
+    .consumed {
+      color: #bbb;
     }
   </style>
 </head>
 <body>
-  <h1>ytDl</h1>
+  <h1>ytDlp</h1>
   <button id="selectFolderBtn">📁 Select Download Folder</button>
   <div class="folder-path" id="folderPath">📂 No folder selected</div>
 
@@ -87,7 +87,7 @@
   
   <div class="progress" id="progressText">Track Progress: 0%</div>
   
-  <button id="downloadBtn">Download</button>
+  <button id="downloadBtn">Start Download</button>
 
   <script>
     const selectFolderBtn = document.getElementById('selectFolderBtn');
@@ -127,10 +127,17 @@
       updateFolderDisplay(folder);
     });
 
-    downloadBtn.addEventListener('click', () => {
+    downloadButtonClick = () => {
       window.electronAPI.downloadAudio();
       progressText.textContent = 'Starting...';
-    });
+      downloadBtn.textContent = 'Downloading...';
+      downloadBtn.style.backgroundColor = '#03da5d';
+
+      // Remove the same function reference
+      downloadBtn.removeEventListener('click', downloadButtonClick);
+    }
+
+    downloadBtn.addEventListener('click', downloadButtonClick);
 
     window.electronAPI.onProgress((percent) => {
       progressText.textContent = `Progress: ${percent}%`;
@@ -142,6 +149,12 @@
 
     window.electronAPI.onError((message) => {
       progressText.textContent = `❌ Error: ${message}`;
+    });
+
+    window.electronAPI.onTerminated(() => {
+      downloadBtn.textContent = 'Start Download';
+      downloadBtn.style.backgroundColor = '#00c4b4';
+      downloadBtn.addEventListener('click', downloadButtonClick);
     });
 
     // Load saved folder on app start
