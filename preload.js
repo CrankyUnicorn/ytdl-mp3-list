@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onComplete: (callback) => ipcRenderer.on('download-complete', callback),
   onCancelled: (callback) => ipcRenderer.on('download-cancelled', callback),
   onError: (callback) => ipcRenderer.on('download-error', (event, message) => callback(message)),
+  onTerminated: (callback) => ipcRenderer.on('download-ended', callback),
 });
