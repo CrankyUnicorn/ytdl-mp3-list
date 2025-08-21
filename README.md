@@ -28,16 +28,20 @@ No hidden logic. No data collection. No manipulation of YouTube systems.
 
 
 ## 📦 Installation (from Source)
+  
+### Scripted (Automatic Installation)
 
-### Prerequisites for installation from source
+1. Run on terminal  
+```bash  
+bash installer  
+```
+
+### Prerequisites for installation from source (Manual Installation)
 
 1. Node.js v20.10.0 https://nodejs.org/en/download
 2. Python v3.11 https://www.python.org/downloads/
 
-You may also NVM or other envirenment managers for both Nodejs an Python.
-Just don't forget to set up the node version to be used.
-
-(i provided versions so exact environment as development can be reproduced)
+You may want to use environment managers for both Nodejs an Python.
 
 ### 1. Clone the repo
 
@@ -52,9 +56,9 @@ npm install
 
 #### ✅ ffmpeg
 
-#### ✅ yt-dlp  
+#### ✅ yt-dlp
 
-- Place both into the `/bin/` of the project folder
+- Place both into the `/bin/` folder of the project folder
 
 ### 4. Run the app in development
 ```bash
@@ -63,7 +67,7 @@ npm start
 
 ## 💼 Packaging Notes
 - Uses `electron-builder` for cross-platform packaging
-- `extraResources` includes `yt-dlp` and `ffmpeg`
+- `extraResources` includes `yt-dlp.exe` and `ffmpeg.exe`
 - Settings are stored in Electron's `app.getPath('userData')`
 
 
