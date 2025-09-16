@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# -------------------------------
+# Create temp and bin folders
+# -------------------------------
+mkdir -p temp bin
+
+# -------------------------------
+# Detect OS
+# -------------------------------
+OS="$(uname -s)"
+case "$OS" in
+    Linux*)   PLATFORM="Linux" ;;
+    Darwin*)  PLATFORM="Mac" ;;
+    CYGWIN*|MINGW*|MSYS*) PLATFORM="Windows" ;;
+    *)        PLATFORM="Unknown" ;;
+esac
+
+echo "Detected platform: $PLATFORM"
+
+# -------------------------------
+# Check for Google Chrome
+# -------------------------------
+check_chrome() {
+    if command -v google-chrome >/dev/null 2>&1; then
+        echo "Google Chrome is installed."
+        return 0
+    elif command -v chrome >/dev/null 2>&1; then
+        echo "Google Chrome is installed."
+        return 0
+    elif [ -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
+        echo "Google Chrome is installed (macOS)."
+        return 0
+    else
+        return 1
+    fi
+}
+
+# -------------------------------
+# Install Chrome if missing
+# -------------------------------
+if [[ "$PLATFORM" == "Linux" ]]; then
+    if check_chrome; then
+        echo "Google Chrome is already installed."
+    else
+        echo "Google Chrome not found. Installing..."
+        if [ -f /etc/debian_version ]; then
+            echo "Detected Debian/Ubuntu-based system."
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/chrome.deb
+            sudo apt update
+            sudo apt install -y /tmp/chrome.deb
+            rm /tmp/chrome.deb
+        elif [ -f /etc/redhat-release ]; then
+            echo "Detected Fedora/RHEL-based system."
+            sudo dnf install -y https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm || \
+            sudo yum install -y https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm
+        elif [ -f /etc/arch-release ]; then
+            echo "Detected Arch-based system."
+            if command -v yay >/dev/null 2>&1; then
+                yay -S --noconfirm google-chrome
+            elif command -v paru >/dev/null 2>&1; then
+                paru -S --noconfirm google-chrome
+            else
+                echo "An AUR helper (yay/paru) is required to install Chrome on Arch."
+                exit 1
+            fi
+        else
+            echo "Unsupported Linux distribution. Please install Google Chrome manually."
+            exit 1
+        fi
+        echo "Google Chrome installation complete."
+    fi
+elif [[ "$PLATFORM" == "Mac" ]]; then
+    echo "Detected macOS."
+    if ! check_chrome; then
+        echo "Google Chrome is not installed. Please download it from:"
+        echo "https://www.google.com/chrome/"
+        exit 1
+    fi
+elif [[ "$PLATFORM" == "Windows" ]]; then
+    echo "Detected Windows."
+    if ! check_chrome; then
+        echo "Google Chrome is not installed. Please download it from:"
+        echo "https://www.google.com/chrome/"
+        exit 1
+    fi
+else
+    echo "Unsupported platform."
+    exit 2
+fi
+
+# -------------------------------
+# Fix Electron chrome-sandbox (Linux only)
+# -------------------------------
+if [[ "$PLATFORM" == "Linux" ]]; then
+    FILE="node_modules/electron/dist/chrome-sandbox"
+    if [ ! -f "$FILE" ]; then
+        echo "Error: $FILE does not exist."
+        exit 1
+    fi
+
+    # Fix owner
+    CURRENT_OWNER=$(stat -c "%U:%G" "$FILE")
+    if [ "$CURRENT_OWNER" != "root:root" ]; then
+        echo "Changing owner to root:root..."
+        sudo chown root:root "$FILE"
+    else
+        echo "Owner is already root:root."
+    fi
+
+    # Fix permissions
+    CURRENT_PERMS=$(stat -c "%a" "$FILE")
+    if [ "$CURRENT_PERMS" != "4755" ]; then
+        echo "Changing permissions to 4755..."
+        sudo chmod 4755 "$FILE"
+    else
+        echo "Permissions are already 4755."
+    fi
+fi
+
+# -------------------------------
+# Install NVM if not installed
+# -------------------------------
+if ! command -v nvm &> /dev/null; then
+    echo "NVM not found. Installing..."
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+fi
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Install Node.js 20
+nvm install 20
+nvm use 20
+nvm alias default 20
+
+# -------------------------------
+# Install pyenv and Python 3.11.9
+# -------------------------------
+if [ ! -d "$HOME/.pyenv" ]; then
+    echo "Installing pyenv..."
+    curl https://pyenv.run | bash || true
+else
+    echo "pyenv already exists, skipping installation."
+fi
+
+export PATH="$HOME/.pyenv/bin:$PATH"
+if command -v pyenv &> /dev/null; then
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+    pyenv install -s 3.11.9
+    pyenv global 3.11.9
+else
+    echo "WARNING: pyenv not available, continuing without pyenv..."
+fi
+
+# -------------------------------
+# Install yt-dlp and ffmpeg
+# -------------------------------
+cd bin
+
+# yt-dlp
+if [[ "$PLATFORM" == "Linux" || "$PLATFORM" == "Mac" ]]; then
+    echo "Downloading yt-dlp..."
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o yt-dlp
+    chmod +x yt-dlp
+elif [[ "$PLATFORM" == "Windows" ]]; then
+    echo "Downloading yt-dlp for Windows..."
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -o yt-dlp.exe
+else
+    echo "Unsupported platform for yt-dlp download. Please install manually."
+    exit 1
+fi
+
+# ffmpeg
+if [ ! -f ffmpeg ] && [ ! -f ffmpeg.exe ]; then
+    echo "Downloading ffmpeg for $PLATFORM..."
+    case "$PLATFORM" in
+        Linux)
+            curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz
+            tar -xf ffmpeg.tar.xz --strip-components=1 --wildcards "*/ffmpeg"
+            rm ffmpeg.tar.xz
+            ;;
+        Mac)
+            if ! command -v ffmpeg &> /dev/null; then
+                if command -v brew &> /dev/null; then
+                    brew install ffmpeg
+                else
+                    echo "Homebrew not found. Please install Homebrew (https://brew.sh/) to install ffmpeg."
+                    exit 1
+                fi
+            fi
+            ln -sf "$(command -v ffmpeg)" ./ffmpeg
+            ;;
+        Windows)
+            curl -L https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -o ffmpeg.zip
+            unzip ffmpeg.zip
+            mv ffmpeg-*/bin/ffmpeg.exe ./ffmpeg.exe
+            rm -rf ffmpeg.zip ffmpeg-*/
+            ;;
+        *)
+            echo "Unsupported platform for ffmpeg auto-install. Please install manually."
+            ;;
+    esac
+else
+    echo "ffmpeg already exists, skipping download."
+fi
+
+cd ..
+
+# -------------------------------
+# Install npm dependencies and start Electron
+# -------------------------------
+npm install
+
+if [[ "$PLATFORM" == "Linux" ]]; then
+    echo "Starting Electron with --no-sandbox on Linux to avoid sandbox errors..."
+    npm start -- --no-sandbox
+else
+    echo "Starting Electron normally..."
+    npm start
+fi
