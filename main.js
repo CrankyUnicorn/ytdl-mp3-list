@@ -360,7 +360,7 @@ ipcMain.on('download-audio', async (event) => {
     if (matchList) {
       const output = await ytDlpWrap.execPromise(
         [
-          '--cookies-from-browser', 'firefox:9iugcrtq.default',
+          '--cookies-from-browser', youtubeProfile,
           '--flat-playlist',
           '--get-id',
           playlistUrl,
@@ -411,4 +411,5 @@ ipcMain.on('download-audio', async (event) => {
 
   console.log(`🏁 Finished Dowloads`)
 });
+
 
