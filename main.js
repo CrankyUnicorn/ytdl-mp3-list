@@ -1,11 +1,13 @@
 // main.js
 const NodeID3 = require('node-id3');
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const { writeFile, readFile } = require('node:fs/promises');
+const { writeFile, readFile } = require('node:fs/promises'); // <--- fs/promises
 const path = require('path');
 const fs = require('fs');
 const YtDlpWrap = require('yt-dlp-wrap').default;
 const _ = require('lodash');
+const { spawn } = require('child_process');
+const sharp = require('sharp');
 
 const ytDlpWrap = new YtDlpWrap();
 
@@ -13,7 +15,7 @@ let selectedDownloadFolder = null;
 let urlQueue = [];
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-const youtubeProfile = 'chrome'; // or firefox etc
+const youtubeProfile = 'firefox'; // todo: add radio buttons on the frontend to select option
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -36,10 +38,10 @@ function createWindow() {
   win.loadFile('index.html');
 }
 
-function loadSettings() {
+async function loadSettings() {
   try {
-    if (fs.existsSync(settingsPath)) {
-      const data = fs.readFileSync(settingsPath);
+    if (await fs.promises.access(settingsPath).then(() => true).catch(() => false)) {
+      const data = await readFile(settingsPath, 'utf-8');
       const settings = JSON.parse(data);
       selectedDownloadFolder = settings.downloadFolder || null;
     }
@@ -48,30 +50,33 @@ function loadSettings() {
   }
 }
 
-function saveSettings() {
+async function saveSettings() {
   try {
     const settings = { downloadFolder: selectedDownloadFolder };
-    fs.writeFileSync(settingsPath, JSON.stringify(settings));
+    await writeFile(settingsPath, JSON.stringify(settings));
   } catch (err) {
     console.error('Error saving settings:', err);
   }
 }
 
-function cleanTempFolder() {
+async function cleanTempFolder() {
   const tempDir = path.join(__dirname, 'temp');
 
-  if (fs.existsSync(tempDir)) {
-    fs.readdirSync(tempDir).forEach(file => {
+  try {
+    await fs.promises.mkdir(tempDir, { recursive: true }); // ensure exists
+
+    const files = await fs.promises.readdir(tempDir);
+    for (const file of files) {
       const filePath = path.join(tempDir, file);
       try {
-        fs.unlinkSync(filePath);
+        await fs.promises.unlink(filePath);
         console.log(`🧹 Deleted: ${filePath}`);
       } catch (err) {
         console.error(`Error deleting ${filePath}:`, err);
       }
-    });
-  } else {
-    fs.mkdirSync(tempDir, { recursive: true }); // Create if missing
+    }
+  } catch (err) {
+    console.error('Error cleaning temp folder:', err);
   }
 }
 
@@ -85,37 +90,80 @@ async function fetchImageBuffer(imageUrl) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+async function cropImageInWorker(inputBuffer, outputPath) {
+  const tempInput = path.join(__dirname, 'temp', `tmp_image_${Date.now()}.jpg`);
+  await writeFile(tempInput, inputBuffer); // fs/promises
+
+  return new Promise((resolve, reject) => {
+    const worker = spawn('node', [path.join(__dirname, 'crop-worker.js'), tempInput, outputPath]);
+
+    worker.on('exit', async code => {
+      try { await fs.promises.unlink(tempInput); } catch {}
+      if (code === 0) resolve();
+      else reject(new Error('Crop worker failed'));
+    });
+
+    worker.on('error', reject);
+  });
+}
+
+async function cropToCenteredSquare(imageBuffer) {
+  const image = sharp(imageBuffer);
+  const metadata = await image.metadata();
+
+  const { width, height } = metadata;
+
+  if (!width || !height) {
+    throw new Error("Unable to determine image dimensions");
+  }
+
+  const size = Math.min(width, height);
+  const left = Math.floor((width - size) / 2);
+  const top = Math.floor((height - size) / 2);
+
+  return image
+    .extract({ left, top, width: size, height: size })
+    .jpeg()
+    .toBuffer();
+}
+
+
 async function appendImageToMp3(mp3Path, imageUrl, outputPath, details = {}) {
   try {
     console.log("Fetching album art...");
-    const imageBuffer = await fetchImageBuffer(imageUrl);
+    const imageOriginalBuffer = await fetchImageBuffer(imageUrl);
+
+    console.log("Cropping album art...");
+    const outputCropped = path.join(__dirname, 'temp', `cropped_${Date.now()}.jpg`);
+    await cropImageInWorker(imageOriginalBuffer, outputCropped);
+
+    console.log("Getting cropped album art...");
+    const imageSquareBuffer = await readFile(outputCropped); // fs/promises
 
     console.log("Reading mp3 file...");
-    const mp3Buffer = await readFile(mp3Path);
+    const mp3Buffer = await readFile(mp3Path); // fs/promises
 
     const tags = {
       title: details.title || '',
       artist: details.artist || '',
       album: details.album || '',
       APIC: {
-        mime: 'image/jpeg', // or image/png depending on your image
-        type: {
-          id: 3,
-          name: 'front cover'
-        },
+        mime: 'image/jpeg',
+        type: { id: 3, name: 'front cover' },
         description: 'Album art',
-        imageBuffer: imageBuffer
+        imageBuffer: imageSquareBuffer
       }
     };
 
     console.log("Writing tags...");
-    // Write tags returns the updated buffer
     const taggedBuffer = NodeID3.update(tags, mp3Buffer);
-
     if (!taggedBuffer) throw new Error("Failed to write ID3 tags");
 
     console.log("Saving new mp3...");
-    await writeFile(outputPath, taggedBuffer);
+    await writeFile(outputPath, taggedBuffer); // fs/promises
+
+    // Clean up cropped image
+    try { await fs.promises.unlink(outputCropped); } catch {}
 
     console.log(`🖼️ Album art added and saved as ${outputPath}`);
   } catch (error) {
@@ -123,8 +171,8 @@ async function appendImageToMp3(mp3Path, imageUrl, outputPath, details = {}) {
   }
 }
 
-app.whenReady().then(() => {
-  loadSettings();
+app.whenReady().then(async () => {
+  await loadSettings(); // await here
 
   try {
     const binaryPath = app.isPackaged
@@ -152,7 +200,7 @@ ipcMain.handle('select-download-folder', async () => {
 
   if (!canceled && filePaths.length > 0) {
     selectedDownloadFolder = filePaths[0];
-    saveSettings();
+    await saveSettings();
     return selectedDownloadFolder;
   }
 
@@ -210,8 +258,10 @@ async function downloadSong({event, url, format}) {
       );
 
       const promise = ytDlpWrap.execPromise([
+        "--js-runtimes", "node",                 // Use Node.js to solve YouTube JS challenges
+        "--remote-components", "ejs:github",     // Optional: fetch updated EJS solver scripts if needed
         "--cookies-from-browser", youtubeProfile,
-        "-f", "bestvideo[height<=144]", // pick a tiny format
+        "-f", "bestvideo[height<=144]",          // pick a tiny format for preview
         "--skip-download",
         "--print-json",
         sanitizedUrl
@@ -220,13 +270,10 @@ async function downloadSong({event, url, format}) {
       let count = 1;
       while (count < 4){
         try {
-          // console.log('Fetching youtube track info. Count: ', count);
           const infoRaw = await Promise.race([promise, timeout]);
           const info = JSON.parse(infoRaw);
 
           if (info) {
-            // console.log("Track info:", info)
-
             const found = info?.thumbnails.find(obj => obj.url.includes('hq1.jpg'));
             thumbnailUrl = found ? found.url : null;
             console.log("Album Art ~ thumbnailUrl:", thumbnailUrl)
@@ -268,10 +315,12 @@ async function downloadSong({event, url, format}) {
     console.log("OutputTemplate:", outputTemplate);
 
     const args = [
-      '--cookies-from-browser', youtubeProfile,
+      "--js-runtimes", "node",
+      "--remote-components", "ejs:github",
+      "--cookies-from-browser", youtubeProfile,
       url,
-      '-f', 'bestaudio',
-      '-o', outputTemp,
+      "-f", "bestaudio",
+      "-o", outputTemp,
     ];
 
     if (format === 'mp3') {
@@ -289,7 +338,6 @@ async function downloadSong({event, url, format}) {
           progressLast = progress.percent;
           event.sender.send('download-progress', `Track Progress: ${progress.percent}`);
         } else if (isNaN(progress.percent) && progressLast === 100) {
-          // if download close fails this will insure that it's finished
           finishedDownload = true
           if (!download.ytDlpProcess.killed) {
             download.ytDlpProcess.kill('SIGKILL');
@@ -321,18 +369,15 @@ async function downloadSong({event, url, format}) {
 }
 
 
-
 ipcMain.on('add-url-queue', async (event, { url, format }) => {
   urlQueue.push({ url, status: 'pending', format, percentage: 0 });
-
-  // updates frontend queue
   event.sender.send('queue-updated', urlQueue);
 });
 
 
 ipcMain.on('download-audio', async (event) => {
-  // clean up
-  cleanTempFolder()
+  // ✅ Await cleanup properly
+  await cleanTempFolder();
 
   if (!selectedDownloadFolder) {
     return event.sender.send('download-error', 'No folder selected. Please select a download folder first.');
@@ -347,8 +392,6 @@ ipcMain.on('download-audio', async (event) => {
     }
 
     currentList.status = 'consuming';
-
-    // updates frontend queue
     event.sender.send('queue-updated', urlQueue);
 
     const { url, format } = currentList;
@@ -358,22 +401,19 @@ ipcMain.on('download-audio', async (event) => {
     const playlistUrl = `https://www.youtube.com/playlist?list=${listId}`;
 
     if (matchList) {
-      const output = await ytDlpWrap.execPromise(
-        [
-          '--cookies-from-browser', youtubeProfile,
-          '--flat-playlist',
-          '--get-id',
-          playlistUrl,
-        ]
-      );
+      const output = await ytDlpWrap.execPromise([
+        "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
+        "--cookies-from-browser", youtubeProfile,
+        "--flat-playlist",
+        "--get-id",
+        playlistUrl
+      ]);
 
       const ids = output.trim().split('\n');
-      // console.log(ids); // array of video IDs
 
-      // run list
       for (let index = 0; index < ids.length; index++) {
         currentList.percentage = _.toString(_.round(100 / ids.length * (index), 2));
-        // updates frontend queue
         event.sender.send('queue-updated', urlQueue);
 
         try {
@@ -384,7 +424,6 @@ ipcMain.on('download-audio', async (event) => {
           console.log(`Song URL: ${songUrl}`)
 
           await downloadSong({ event, url: songUrl, format });
-
           await sleep(10000);
         } catch (error) {
           console.log("⁉️ ~ error:", error)
@@ -403,13 +442,9 @@ ipcMain.on('download-audio', async (event) => {
     }
 
     currentList.status = 'consumed';
-    // updates frontend queue
     event.sender.send('queue-updated', urlQueue);
   }
 
   event.sender.send('download-ended');
-
-  console.log(`🏁 Finished Dowloads`)
+  console.log(`🏁 Finished Dowloads`);
 });
-
-

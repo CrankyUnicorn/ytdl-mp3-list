@@ -15,7 +15,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "cross-env USE_HARD_LINKS=false ELECTRON_BUILDER_DISABLE_MIRROR=true electron-builder --win --x64"
+    "dist": "cross-env USE_HARD_LINKS=false ELECTRON_BUILDER_DISABLE_MIRROR=true electron-builder --win --x64",
+    "cover-cropper": "node crop-mp3-cover-art.js [PATH]"
   },
   "build": {
     "appId": "com.refloow.ytdownloader",
@@ -28,12 +29,12 @@
     ],
     "extraResources": [
       {
-        "from": "bin/yt-dlp.exe",
-        "to": "yt-dlp.exe"
+        "from": "bin/yt-dlp",
+        "to": "yt-dlp"
       },
       {
-        "from": "bin/ffmpeg.exe",
-        "to": "ffmpeg.exe"
+        "from": "bin/ffmpeg",
+        "to": "ffmpeg"
       }
     ],
     "win": {
@@ -53,6 +54,7 @@
     "ffmpeg-static": "^5.1.0",
     "lodash": "^4.17.21",
     "node-id3": "^0.2.9",
+    "sharp": "^0.34.5",
     "yt-dlp-wrap": "^2.3.2"
   },
   "devDependencies": {

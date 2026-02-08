@@ -31,10 +31,8 @@ No hidden logic. No data collection. No manipulation of YouTube systems.
   
 ### Scripted (Automatic Installation)
 
-1. Run on terminal  
-```bash  
-bash installer  
-```
+1. Run on terminal    
+```bash installer```
 
 ### Prerequisites for installation from source (Manual Installation)
 

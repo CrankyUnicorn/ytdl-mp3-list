@@ -166,9 +166,13 @@ if [[ "$PLATFORM" == "Linux" || "$PLATFORM" == "Mac" ]]; then
     echo "Downloading yt-dlp..."
     curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o yt-dlp
     chmod +x yt-dlp
+
+    echo "Ensuring JavaScript runtime will be used..."
+    # Nothing to install here, we will pass --js-runtimes when calling yt-dlp
 elif [[ "$PLATFORM" == "Windows" ]]; then
     echo "Downloading yt-dlp for Windows..."
     curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -o yt-dlp.exe
+    echo "Ensuring JavaScript runtime will be used..."
 else
     echo "Unsupported platform for yt-dlp download. Please install manually."
     exit 1
@@ -222,3 +226,4 @@ else
     echo "Starting Electron normally..."
     npm start
 fi
+
