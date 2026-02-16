@@ -383,65 +383,69 @@ ipcMain.on('download-audio', async (event) => {
     return event.sender.send('download-error', 'No folder selected. Please select a download folder first.');
   }
 
-  while (_.some(urlQueue, element => element.status !== 'consumed')) {
+  while (_.some(urlQueue, element => (element.status !== 'consumed' || element.status !== 'failed'))) {
     const pendingUrls = _.filter(urlQueue, element => element.status === 'pending');
     const currentList = pendingUrls ? pendingUrls[0] : null;
-
+    
     if (!currentList) {
       break;
     }
 
     currentList.status = 'consuming';
     event.sender.send('queue-updated', urlQueue);
-
+    
     const { url, format } = currentList;
-
+    
     const matchList = url.match(/list=([^&]+)/);
     const listId = matchList ? matchList[1] : null;
     const playlistUrl = `https://www.youtube.com/playlist?list=${listId}`;
+    
+    try {
+      if (matchList) {
+        const output = await ytDlpWrap.execPromise([
+          "--js-runtimes", "node",
+          "--remote-components", "ejs:github",
+          "--cookies-from-browser", youtubeProfile,
+          "--flat-playlist",
+          "--get-id",
+          playlistUrl
+        ]);
 
-    if (matchList) {
-      const output = await ytDlpWrap.execPromise([
-        "--js-runtimes", "node",
-        "--remote-components", "ejs:github",
-        "--cookies-from-browser", youtubeProfile,
-        "--flat-playlist",
-        "--get-id",
-        playlistUrl
-      ]);
+        const ids = output.trim().split('\n');
 
-      const ids = output.trim().split('\n');
+        for (let index = 0; index < ids.length; index++) {
+          currentList.percentage = _.toString(_.round(100 / ids.length * (index), 2));
+          event.sender.send('queue-updated', urlQueue);
 
-      for (let index = 0; index < ids.length; index++) {
-        currentList.percentage = _.toString(_.round(100 / ids.length * (index), 2));
-        event.sender.send('queue-updated', urlQueue);
+          try {
+            console.log(`---------------------------------------------------------`)
+            console.log(`🎵 Trying to download song ${index + 1} out of ${ids.length}`)
+
+            const songUrl = `https://www.youtube.com/watch?v=${ids[index]}`;
+            console.log(`Song URL: ${songUrl}`)
+
+            await downloadSong({ event, url: songUrl, format });
+            await sleep(10000);
+          } catch (error) {
+            console.log("⁉️ ~ error:", error)
+          }
+        }
+      } else {
+        const match = url.match(/v=([^&]+)/);
+        const videoId = match ? match[1] : null;
+        const sanitizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
         try {
-          console.log(`---------------------------------------------------------`)
-          console.log(`🎵 Trying to download song ${index + 1} out of ${ids.length}`)
-
-          const songUrl = `https://www.youtube.com/watch?v=${ids[index]}`;
-          console.log(`Song URL: ${songUrl}`)
-
-          await downloadSong({ event, url: songUrl, format });
-          await sleep(10000);
+          await downloadSong({ event, url: sanitizedUrl, format });
         } catch (error) {
-          console.log("⁉️ ~ error:", error)
+          console.log("🚀 ~ error:", error)
         }
       }
-    } else {
-      const match = url.match(/v=([^&]+)/);
-      const videoId = match ? match[1] : null;
-      const sanitizedUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-      try {
-        await downloadSong({ event, url: sanitizedUrl, format });
-      } catch (error) {
-        console.log("🚀 ~ error:", error)
-      }
+      currentList.status = 'consumed';
+    } catch (error) {
+      currentList.status = 'failed';
     }
-
-    currentList.status = 'consumed';
     event.sender.send('queue-updated', urlQueue);
   }
 
