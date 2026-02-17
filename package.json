@@ -14,7 +14,7 @@
   "description": "Fully open source desktop app for downloading audio (MP3 or WebM) with ease. Perfect for personal use by musicians, beatmakers, or hobbyists who want to download free-to-use YouTube beats for practice, remixing, or sampling without going to sketchy website tools.",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "electron . ",
     "dist": "cross-env USE_HARD_LINKS=false ELECTRON_BUILDER_DISABLE_MIRROR=true electron-builder --win --x64",
     "cover-cropper": "node crop-mp3-cover-art.js [PATH]"
   },

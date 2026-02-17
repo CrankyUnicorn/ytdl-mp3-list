@@ -15,7 +15,7 @@ let selectedDownloadFolder = null;
 let urlQueue = [];
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-const youtubeProfile = 'firefox'; // todo: add radio buttons on the frontend to select option
+let youtubeProfile;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -28,7 +28,7 @@ const ffmpegPath = app.isPackaged
 function createWindow() {
   const win = new BrowserWindow({
     width: 700,
-    height: 800,
+    height: 870,
     resizable: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -369,8 +369,8 @@ async function downloadSong({event, url, format}) {
 }
 
 
-ipcMain.on('add-url-queue', async (event, { url, format }) => {
-  urlQueue.push({ url, status: 'pending', format, percentage: 0 });
+ipcMain.on('add-url-queue', async (event, { url, format, browser }) => {
+  urlQueue.push({ url, status: 'pending', format, browser, percentage: 0 });
   event.sender.send('queue-updated', urlQueue);
 });
 
@@ -391,10 +391,13 @@ ipcMain.on('download-audio', async (event) => {
       break;
     }
 
+    const { url, format, browser } = currentList;
+    
+    // Set which browser to use so to get youtube client token. Needed to get content. 
+    youtubeProfile = browser
+
     currentList.status = 'consuming';
     event.sender.send('queue-updated', urlQueue);
-    
-    const { url, format } = currentList;
     
     const matchList = url.match(/list=([^&]+)/);
     const listId = matchList ? matchList[1] : null;

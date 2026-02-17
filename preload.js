@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   downloadAudio: () => ipcRenderer.send('download-audio'),
-  addUrlQueue: (url, format) => ipcRenderer.send('add-url-queue', { url, format }),
+  addUrlQueue: (url, format, browser) => ipcRenderer.send('add-url-queue', { url, format, browser }),
   queueUpdated: (callback) => ipcRenderer.on('queue-updated', (event, queueStatus) => callback(queueStatus)),
   selectDownloadFolder: () => ipcRenderer.invoke('select-download-folder'),
   getSavedFolder: () => ipcRenderer.invoke('get-saved-folder'),

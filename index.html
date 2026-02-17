@@ -15,6 +15,12 @@
     h1 {
       text-align: center;
       color: #fff;
+      font-size: medium;
+      padding: 0;
+    }
+    label {
+      color: #bbb;
+      margin-bottom: 10px;
     }
     input, select, button {
       width: 100%;
@@ -73,17 +79,29 @@
   </style>
 </head>
 <body>
-  <h1>ytDlp</h1>
+  <h1>Yt-Dlp Download Manager</h1>
   <button id="selectFolderBtn">📁 Select Download Folder</button>
   <div class="folder-path" id="folderPath">📂 No folder selected</div>
 
-  <input id="urlInput" type="text" placeholder="Paste YouTube URL here" />
+  <label for="browserSelect">YouTube User Account Origin:</label>
+  <select id="browserSelect">
+    <option value="chrome">Chrome</option>
+    <option value="firefox">Firefox</option>
+    <option value="edge">Edge</option>
+    <option value="safari">Safari</option>
+    <option value="opera">Opera</option>
+  </select>
 
+  <label for="formatSelect">Output Format Selection:</label>
   <select id="formatSelect">
     <option value="mp3">MP3 (convert)</option>
     <option value="webm">WebM (best quality)</option>
+    <option value="mp4">MP4 (video)</option>
+    <option value="m4a">M4A (audio)</option>
   </select>
 
+  <label for="urlInput">YouTube Watch or List URL:</label>
+  <input id="urlInput" type="text" placeholder="Paste YouTube URL here" />
   
   <button id="addQueueBtn">Add to Queue</button>
   <div id="queue"></div>
@@ -95,8 +113,9 @@
   <script>
     const selectFolderBtn = document.getElementById('selectFolderBtn');
     const folderPathDisplay = document.getElementById('folderPath');
-    const urlInput = document.getElementById('urlInput');
+    const browserSelect = document.getElementById('browserSelect');
     const formatSelect = document.getElementById('formatSelect');
+    const urlInput = document.getElementById('urlInput');
     const downloadBtn = document.getElementById('downloadBtn');
     const addQueueBtn = document.getElementById('addQueueBtn');
     const queueDiv = document.getElementById('queue');
@@ -116,8 +135,9 @@
     addQueueBtn.addEventListener('click', () => {
       const url = urlInput.value.trim();
       const format = formatSelect.value;
+      const browser = browserSelect.value;
       if (url) {
-        window.electronAPI.addUrlQueue(url, format);
+        window.electronAPI.addUrlQueue(url, format, browser);
         urlInput.value = '';
       }
     });
